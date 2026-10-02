@@ -236,6 +236,10 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param include_internal Whether internal components should be displayed.
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+#ifdef USE_ESP32
+  /// Cap on open /events streams. A new stream past the cap closes the oldest one.
+  void set_max_event_streams(uint8_t max_event_streams) { this->events_.set_max_sessions(max_event_streams); }
+#endif
   /** Set whether or not the webserver should expose the Log.
    *
    * @param expose_log.

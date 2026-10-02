@@ -203,7 +203,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port){};
+  AsyncWebServer(uint16_t port) : port_(port) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -332,6 +332,8 @@ class AsyncEventSourceResponse {
   bool close_retry_warning_logged_{false};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
+  // Assigned by AsyncEventSource on adoption. A lower value is an older session. Main-loop only.
+  uint32_t seq_{0};
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
@@ -370,9 +372,15 @@ class AsyncEventSource : public AsyncWebHandler {
 
   size_t count() const { return this->sessions_.size(); }
 
+  // Cap on open /events sessions. When a new session makes the count exceed the cap, the
+  // oldest session is closed. 0 means no cap. Main-loop only.
+  void set_max_sessions(uint8_t max_sessions) { this->max_sessions_ = max_sessions; }
+
  protected:
   // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+  // Main-loop only: close the oldest live sessions until the count is within max_sessions_.
+  void close_oldest_over_cap_();
 
   std::string url_;
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
@@ -383,6 +391,8 @@ class AsyncEventSource : public AsyncWebHandler {
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
   std::atomic<bool> has_pending_sessions_{false};
+  uint32_t next_session_seq_{0};
+  uint8_t max_sessions_{0};
 };
 #endif  // USE_WEBSERVER
 

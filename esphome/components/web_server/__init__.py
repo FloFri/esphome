@@ -61,6 +61,8 @@ CONF_ALLOWED_ORIGINS = "allowed_origins"
 # Schema default that also matches the C++ initializer in web_server_base.h; codegen
 # skips the setter when the config equals it.
 DEFAULT_PORT = 80
+# Not in esphome.const: this option exists only on this branch.
+CONF_MAX_EVENT_STREAMS = "max_event_streams"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -277,6 +279,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_with_framework(Framework.ESP_IDF),
                 cv.int_range(min=1, max=24),
             ),
+            # Open /events streams the server keeps. A new stream past the cap closes
+            # the oldest one, which frees a stream that a client left half open.
+            # ESP-IDF only. Unset keeps every stream until it closes or stalls.
+            cv.Optional(CONF_MAX_EVENT_STREAMS): cv.All(
+                cv.only_with_framework(Framework.ESP_IDF),
+                cv.int_range(min=1, max=24),
+            ),
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
@@ -409,6 +418,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(paren.set_port(port))
     if (max_connections := config.get(CONF_MAX_CONNECTIONS)) is not None:
         cg.add(paren.set_max_open_sockets(max_connections))
+    if (max_event_streams := config.get(CONF_MAX_EVENT_STREAMS)) is not None:
+        cg.add(var.set_max_event_streams(max_event_streams))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
     cg.add_define("USE_WEBSERVER_VERSION", version)

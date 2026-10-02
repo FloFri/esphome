@@ -762,7 +762,10 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
+    rsp->seq_ = this->next_session_seq_++;
     this->sessions_.push_back(rsp);
+    // Close the older streams before this one starts its entity dump, so their buffers are free first.
+    this->close_oldest_over_cap_();
     // Prime first so on_connect_ observes a session that has already sent its
     // initial ping/config/sorting_groups, matching the pre-refactor ordering.
     rsp->start_session_main_loop_();
@@ -772,6 +775,33 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
   }
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+
+void AsyncEventSource::close_oldest_over_cap_() {
+  if (this->max_sessions_ == 0) {
+    return;
+  }
+  // A client that reconnects while its previous stream is half open holds two sessions. Each one
+  // can hold a full lwIP send buffer, so the oldest goes first: it is the one most likely dead.
+  for (;;) {
+    size_t live = 0;
+    AsyncEventSourceResponse *oldest = nullptr;
+    for (auto *ses : this->sessions_) {
+      if (ses->fd_.load() == 0 || ses->close_requested_) {
+        continue;
+      }
+      live++;
+      if (oldest == nullptr || static_cast<int32_t>(ses->seq_ - oldest->seq_) < 0) {
+        oldest = ses;
+      }
+    }
+    if (live <= this->max_sessions_ || oldest == nullptr) {
+      return;
+    }
+    ESP_LOGD(TAG, "Closing oldest EventSource session (fd: %d): %zu open, cap %u", oldest->fd_.load(), live,
+             this->max_sessions_);
+    oldest->request_close_();
+  }
+}
 
 void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                         uint32_t reconnect) {
