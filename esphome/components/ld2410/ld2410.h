@@ -57,6 +57,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
   SUB_TEXT_SENSOR(mac)
+  SUB_TEXT_SENSOR(calibration_result)
 #endif
 #ifdef USE_NUMBER
   SUB_NUMBER(light_threshold)
@@ -127,8 +128,11 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
   void query_background_correction_();
-  void finish_background_correction_(bool completed);
+  // How a background correction ended, as published by the calibration result text sensor.
+  enum class BgCorrectionResult : uint8_t { SUCCESS, FAILED, TIMED_OUT };
+  void finish_background_correction_(BgCorrectionResult result);
   void set_background_correction_running_(bool running);
+  void publish_calibration_result_(const char *state);
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -142,6 +146,8 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   bool bg_correction_running_{false};
   uint32_t bg_correction_next_poll_{0};  // millis() of next 0x1B poll while running
   uint32_t bg_correction_deadline_{0};   // millis() after which we stop waiting
+  // Last target-state byte seen while running: 0x05 success, 0x06 failure, else 0.
+  uint8_t bg_correction_frame_result_{0};
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
