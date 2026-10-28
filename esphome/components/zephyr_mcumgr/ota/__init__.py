@@ -172,6 +172,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV6", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV4", False)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_AUTOMATIC_INIT", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_STACK_SIZE", 2048)
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
         uart = UARTS[transport[CONF_HARDWARE_UART]]
