@@ -22,7 +22,6 @@ from .const import (
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
     KEY_SYSBUILD_CONF,
-    KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
 )
@@ -258,13 +257,6 @@ def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
             f"{name} already set with value '{conf[name]}', cannot set again to '{value}'"
         )
     conf[name] = value
-
-
-def zephyr_add_user(key, value):
-    user = zephyr_data()[KEY_USER]
-    if key not in user:
-        user[key] = []
-    user[key] += [value]
 
 
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
