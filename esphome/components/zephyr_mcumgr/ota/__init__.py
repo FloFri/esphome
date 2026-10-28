@@ -41,15 +41,17 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
+CONF_UDP = "udp"
 CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf: ConfigType) -> ConfigType:
     transport = conf[CONF_TRANSPORT]
-    if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
+    if transport[CONF_BLE] or transport[CONF_UDP] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
-        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}: true' or '{CONF_HARDWARE_UART}'"
+        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}: true', "
+        f"'{CONF_UDP}: true' or '{CONF_HARDWARE_UART}'"
     )
 
 
@@ -68,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
                 {
                     cv.Optional(CONF_BLE, default=False): cv.boolean,
+                    cv.Optional(CONF_UDP, default=False): cv.boolean,
                     cv.Optional(
                         CONF_HARDWARE_UART,
                     ): cv.one_of(*UARTS, upper=True),
@@ -98,6 +101,10 @@ def _validate_ble_server(config: ConfigType) -> None:
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
+def _validate_udp(config: ConfigType) -> None:
+    if config[CONF_TRANSPORT][CONF_UDP] and "openthread" not in CORE.loaded_integrations:
+        raise cv.Invalid("'openthread' component is required for UDP OTA")
+
 def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
@@ -113,6 +120,7 @@ def _validate_bootloader(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
+    _validate_udp(config)
     _validate_bootloader(config)
 
 
@@ -158,6 +166,11 @@ async def to_code(config: ConfigType) -> None:
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
+    if transport[CONF_UDP]:
+        zephyr_add_prj_conf("NET_SOCKETS", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV6", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV4", False)
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
         uart = UARTS[transport[CONF_HARDWARE_UART]]
